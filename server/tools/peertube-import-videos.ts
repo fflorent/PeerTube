@@ -77,6 +77,12 @@ async function run (url: string, user: UserInfo) {
   const youtubeDL = await safeGetYoutubeDL()
 
   const options = [ '-j', '--flat-playlist', '--playlist-reverse' ]
+  if (program[ 'until' ]) {
+    options.push(`--dateafter=${program[ 'until' ]}`)
+  }
+  if (program[ 'since' ]) {
+    options.push(`--datebefore=${program[ 'since' ]}`)
+  }
   youtubeDL.getInfo(program[ 'targetUrl' ], options, processOptions, async (err, info) => {
     if (err) {
       exitError(err.message)
@@ -122,21 +128,6 @@ function processVideo (parameters: {
 
     const videoInfo = await fetchObject(youtubeInfo)
     log.debug('Fetched object.', videoInfo)
-
-    if (program[ 'since' ]) {
-      if (buildOriginallyPublishedAt(videoInfo).getTime() < program[ 'since' ].getTime()) {
-        log.info('Video "%s" has been published before "%s", don\'t upload it.\n',
-          videoInfo.title, formatDate(program[ 'since' ]))
-        return res()
-      }
-    }
-    if (program[ 'until' ]) {
-      if (buildOriginallyPublishedAt(videoInfo).getTime() > program[ 'until' ].getTime()) {
-        log.info('Video "%s" has been published after "%s", don\'t upload it.\n',
-          videoInfo.title, formatDate(program[ 'until' ]))
-        return res()
-      }
-    }
 
     const result = await searchVideoWithSort(url, videoInfo.title, '-match')
 
@@ -375,16 +366,13 @@ async function getAccessTokenOrDie (url: string, user: UserInfo) {
   }
 }
 
-function parseDate (dateAsStr: string): Date {
-  if (!/\d{4}-\d{2}-\d{2}/.test(dateAsStr)) {
+function parseDate (dateAsStr: string): string {
+  const match = dateAsStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) {
     exitError(`Invalid date passed: ${dateAsStr}. Expected format: YYYY-MM-DD. See help for usage.`)
   }
-  const date = new Date(dateAsStr)
-  date.setHours(0, 0, 0)
-  if (isNaN(date.getTime())) {
-    exitError(`Invalid date passed: ${dateAsStr}. See help for usage.`)
-  }
-  return date
+  // The format we need to use for youtube-dl is YYYYMMDD
+  return match.slice(1).join('');
 }
 
 function formatDate (date: Date): string {
